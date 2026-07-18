@@ -35,6 +35,11 @@ const TEST_LIBRARY = {
   'TSH': { unit: 'µIU/mL', low: 0.4, high: 4.0 },
   'ALT': { unit: 'U/L', low: 7, high: 56 },
   'AST': { unit: 'U/L', low: 10, high: 40 },
+  'Serum Iron': { unit: 'µg/dL', low: 60, high: 170 },
+  'Serum Ferritin': { unit: 'ng/mL', low: 20, high: 200 },
+  'HbA1c': { unit: '%', low: 4.0, high: 5.6 },
+  'Serum Calcium': { unit: 'mg/dL', low: 8.5, high: 10.5 },
+  'Vitamin D': { unit: 'ng/mL', low: 30, high: 100 },
 };
 
 const SAMPLE = [
@@ -519,6 +524,9 @@ export default function Panel() {
 
       <div style={{ padding: '14px 32px', borderTop: `1px solid ${COLORS.border}`, fontSize: 11, color: COLORS.inkSoft }}>
         Reference ranges are typical adult defaults and vary by lab and individual — confirm against your own lab report, not a substitute for medical advice.
+      </div>
+      <div style={{ padding: '10px 32px 20px', textAlign: 'center', fontSize: 11.5, color: COLORS.inkSoft }}>
+        A project of <span className="panel-h1" style={{ fontStyle: 'italic', color: COLORS.tealDark }}>Dr. Fatima Azhar</span> — part of a wider vision to make health data understandable, trackable, and actionable for every patient.
       </div>
     </div>
   );

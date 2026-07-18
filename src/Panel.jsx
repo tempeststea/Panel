@@ -3,19 +3,19 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import Papa from 'papaparse';
 
 const COLORS = {
-  ink: '#1B2A2E',
-  inkSoft: '#5B6B6C',
-  paper: '#EEF2EE',
+  ink: '#2A2230',
+  inkSoft: '#6B5C6E',
+  paper: '#FBF6F2',
   card: '#FFFFFF',
-  border: '#D7DDD6',
-  teal: '#1F7A6C',
-  tealDark: '#0F4C42',
-  tealSoft: 'rgba(31,122,108,0.14)',
+  border: '#E6DADD',
+  teal: '#C3AEDD',
+  tealDark: '#8A6FA8',
+  tealSoft: 'rgba(138,111,168,0.14)',
   red: '#B23A32',
   redSoft: 'rgba(178,58,50,0.10)',
   amber: '#B4791A',
   amberSoft: 'rgba(180,121,26,0.12)',
-  overlay: ['#0F4C42', '#6B5B95', '#3D6E8C', '#946B2D', '#8C3D5B', '#4C6B3D'],
+  overlay: ['#8A6FA8', '#D98CA0', '#4A3355', '#B9A8D9', '#946B2D', '#5B3A5E'],
 };
 
 const TEST_LIBRARY = {
@@ -290,16 +290,16 @@ export default function Panel() {
 
   if (!loaded) {
     return (
-      <div style={{ fontFamily: "'IBM Plex Sans', system-ui, sans-serif", background: COLORS.paper, color: COLORS.inkSoft, minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 16, fontSize: 14 }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.paper, color: COLORS.inkSoft, minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 16, fontSize: 14 }}>
         Loading your saved results…
       </div>
     );
   }
 
   return (
-    <div style={{ fontFamily: "'IBM Plex Sans', system-ui, sans-serif", background: COLORS.paper, color: COLORS.ink, minHeight: '600px', padding: '0', borderRadius: 16 }}>
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.paper, color: COLORS.ink, minHeight: '600px', padding: '0', borderRadius: 16 }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
         .panel-h1 { font-family: 'Fraunces', serif; }
         .panel-num { font-family: 'IBM Plex Mono', monospace; }
         .panel-btn { cursor: pointer; border: 1px solid ${COLORS.border}; background: ${COLORS.card}; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 500; color: ${COLORS.ink}; }

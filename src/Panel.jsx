@@ -75,6 +75,66 @@ function fmtDate(d) {
   return dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+// Describes the shape of a test's own history — separate from whether the
+// latest value sits inside the population reference range. This is a simple
+// heuristic for a quick read, not a clinical trend analysis.
+function trendOf(list) {
+  if (!list || list.length < 2) return null;
+  const values = list.map(e => e.value);
+  const n = values.length;
+  const last = values[n - 1];
+  const hist = values.slice(0, -1);
+  const histMean = hist.reduce((a, b) => a + b, 0) / hist.length;
+  const histStd = hist.length > 1
+    ? Math.sqrt(hist.reduce((a, b) => a + (b - histMean) ** 2, 0) / hist.length)
+    : Math.abs(histMean) * 0.08;
+  const spread = Math.max(histStd, Math.abs(histMean) * 0.04, 0.01);
+
+  // A sharp jump away from this person's own history, regardless of direction.
+  if (Math.abs(last - histMean) > spread * 1.6) {
+    return { label: 'Outside your usual range', icon: '◆', tone: COLORS.amber };
+  }
+
+  const first = values[0];
+  const pctChange = first !== 0 ? (last - first) / Math.abs(first) : (last - first);
+  if (Math.abs(pctChange) < 0.05) {
+    return { label: 'Stable over time', icon: '→', tone: COLORS.inkSoft };
+  }
+  if (last > first) {
+    return { label: 'Gradually increasing', icon: '↑', tone: COLORS.inkSoft };
+  }
+  return { label: 'Recently decreased', icon: '↓', tone: COLORS.inkSoft };
+}
+
+// Status shown in the test list: reflects both where the latest value sits
+// relative to the reference range, and whether it's an outlier for this
+// person specifically — a value can be "in range" but still worth a second
+// look if it's unusual for that individual's own history.
+function statusOf(list) {
+  if (!list || list.length === 0) return null;
+  const last = list[list.length - 1];
+  const trend = trendOf(list);
+
+  if (last.flag === 'unknown') return 'Monitor';
+
+  if (last.flag === 'normal') {
+    return trend && trend.label === 'Outside your usual range' ? 'Monitor' : 'Normal';
+  }
+
+  // high or low — gauge how far past the boundary, relative to the range's own width
+  const rangeWidth = (last.high ?? 0) - (last.low ?? 0);
+  if (!rangeWidth || rangeWidth <= 0) return 'Monitor';
+  const overshoot = last.flag === 'high' ? (last.value - last.high) : (last.low - last.value);
+  const ratio = overshoot / rangeWidth;
+  return ratio > 0.25 ? 'Consult Physician' : 'Monitor';
+}
+
+function statusColor(status) {
+  if (status === 'Normal') return COLORS.tealDark;
+  if (status === 'Consult Physician') return COLORS.red;
+  return COLORS.amber; // Monitor
+}
+
 const CustomDot = (props) => {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null) return null;
@@ -412,6 +472,7 @@ export default function Panel() {
           {testNames.map(t => {
             const list = byTest[t];
             const last = list[list.length - 1];
+            const status = statusOf(list);
             return (
               <div key={t} className={`test-row${selected.includes(t) ? ' active' : ''}`} onClick={() => toggleSelect(t)}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: flagColor(last.flag), flexShrink: 0 }} />
@@ -419,6 +480,12 @@ export default function Panel() {
                   <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t}</div>
                   <div style={{ fontSize: 11, color: COLORS.inkSoft }}>{list.length} result{list.length === 1 ? '' : 's'} · last {last.value}{last.unit}</div>
                 </div>
+                {status && (
+                  <div style={{
+                    fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em',
+                    color: statusColor(status), whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 8,
+                  }}>{status}</div>
+                )}
               </div>
             );
           })}
@@ -470,6 +537,26 @@ export default function Panel() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+
+              {(() => {
+                const trend = trendOf(singleData);
+                if (!trend) {
+                  return (
+                    <div style={{ fontSize: 12.5, color: COLORS.inkSoft, marginTop: 10 }}>
+                      Add another result to start seeing a trend.
+                    </div>
+                  );
+                }
+                return (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12,
+                    fontSize: 13, fontWeight: 500, color: trend.tone,
+                  }}>
+                    <span style={{ fontSize: 14 }}>{trend.icon}</span>
+                    {trend.label}
+                  </div>
+                );
+              })()}
 
               <table style={{ width: '100%', fontSize: 13, marginTop: 20, borderCollapse: 'collapse' }}>
                 <thead>

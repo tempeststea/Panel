@@ -671,11 +671,28 @@ export default function Panel() {
         .test-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
         .test-row:hover { background: rgba(0,0,0,0.03); }
         .test-row.active { background: ${COLORS.tealSoft}; border-color: ${COLORS.teal}; }
+
+        .app-shell { display: flex; flex-wrap: wrap; gap: 0; }
+        .sidebar-col { width: 300px; min-width: 260px; flex: 0 0 300px; border-right: 1px solid ${COLORS.border}; padding: 24px 20px 32px; box-sizing: border-box; }
+        .main-col { flex: 1; min-width: 320px; padding: 24px 28px 32px; display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; box-sizing: border-box; }
+        .main-left-col { flex: 1 1 420px; min-width: 320px; }
+        .main-right-col { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 20px; }
+
+        @media (max-width: 780px) {
+          .sidebar-col { width: 100%; flex-basis: 100%; border-right: none; border-bottom: 1px solid ${COLORS.border}; }
+          .main-col { width: 100%; flex-basis: 100%; padding: 20px 16px 28px; flex-direction: column; }
+          .main-left-col { flex-basis: 100%; min-width: 0; }
+          .main-right-col { width: 100%; position: static; top: auto; }
+          /* When a test is selected, the detail view takes over the whole screen instead of
+             stacking beneath the sidebar list — tap "Back to all tests" to return to it. */
+          .app-shell.detail-open .sidebar-col { display: none; }
+          .app-shell:not(.detail-open) .main-col { display: none; }
+        }
       `}</style>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>
+      <div className={`app-shell${selected.length > 0 ? ' detail-open' : ''}`}>
         {/* Sidebar */}
-        <div style={{ width: 300, minWidth: 260, flex: '0 0 300px', borderRight: `1px solid ${COLORS.border}`, padding: '24px 20px 32px' }}>
+        <div className="sidebar-col">
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: COLORS.tealSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -766,10 +783,10 @@ export default function Panel() {
         </div>
 
         {/* Main */}
-        <div style={{ flex: 1, minWidth: 320, padding: '24px 28px 32px', display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div className="main-col">
 
           {/* Left: back link + content for whichever state is active */}
-          <div style={{ flex: '1 1 420px', minWidth: 320 }}>
+          <div className="main-left-col">
             {selected.length > 0 && (
               <div style={{ marginBottom: 20 }}>
                 <span onClick={() => setSelected([])} style={{ cursor: 'pointer', color: COLORS.tealDark, fontSize: 13.5, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -964,7 +981,7 @@ export default function Panel() {
           </div>
 
           {/* Right column: Patient Profile, with Key Takeaways stacked directly beneath it */}
-          <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20, position: 'sticky', top: 20 }}>
+          <div className="main-right-col">
             <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '12px 14px', background: COLORS.card }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: profileOpen ? 10 : 0 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: COLORS.inkSoft }}>Patient profile</div>

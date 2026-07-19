@@ -180,11 +180,203 @@ function statusColor(status) {
   return COLORS.amber; // Monitor
 }
 
+function statusBg(status) {
+  if (status === 'Normal') return COLORS.tealSoft;
+  if (status === 'Consult Physician') return COLORS.redSoft;
+  return COLORS.amberSoft; // Monitor
+}
+
+// Baseline = mean of every recorded result for this test so far. Used both
+// for the per-row "compared to baseline" column and the key-takeaways card,
+// so the term means one consistent thing throughout the app.
+function baselineOf(list) {
+  if (!list || list.length === 0) return null;
+  const values = list.map(e => e.value);
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+function comparedToBaseline(value, baseline) {
+  if (baseline == null) return null;
+  const deadZone = Math.max(Math.abs(baseline) * 0.03, 0.01);
+  if (value > baseline + deadZone) return { direction: 'higher', icon: '↑' };
+  if (value < baseline - deadZone) return { direction: 'lower', icon: '↓' };
+  return { direction: 'about', icon: '→' };
+}
+
+// A short read on the last few results specifically (distinct from the
+// whole-history trend), plus the numeric swing across that same window.
+function last3Summary(list) {
+  if (!list || list.length < 2) return null;
+  const windowSize = Math.min(3, list.length);
+  const win = list.slice(-windowSize);
+  const change = win[win.length - 1].value - win[0].value;
+  const unit = win[win.length - 1].unit;
+  let direction = 'steady';
+  if (change > 0) direction = 'up';
+  if (change < 0) direction = 'down';
+  return { windowSize, change, unit, direction };
+}
+
+function overallConclusion(status) {
+  if (status === 'Normal') return { label: 'Looking good', color: COLORS.tealDark };
+  if (status === 'Consult Physician') return { label: 'Worth discussing with your doctor', color: COLORS.red };
+  return { label: 'Worth monitoring', color: COLORS.amber };
+}
+
+function downloadCSV(testName, list) {
+  const rows = list.map(e => ({
+    date: e.date, test: e.test, value: e.value, unit: e.unit, low: e.low, high: e.high, notes: e.notes || '',
+  }));
+  const csv = Papa.unparse(rows);
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${testName.replace(/\s+/g, '_')}_results.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function IconVial({ size = 20, color = COLORS.tealDark }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round">
+      <path d="M9 2h6M10 2v7.5L5.5 18a2.5 2.5 0 0 0 2.2 3.7h8.6a2.5 2.5 0 0 0 2.2-3.7L14 9.5V2" />
+      <path d="M7.2 15h9.6" />
+    </svg>
+  );
+}
+function IconLink({ size = 18, color = COLORS.tealDark }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round">
+      <path d="M9.5 14.5l5-5" />
+      <path d="M11 6.5l1-1a3.5 3.5 0 0 1 5 5l-1 1" />
+      <path d="M13 17.5l-1 1a3.5 3.5 0 0 1-5-5l1-1" />
+    </svg>
+  );
+}
+function IconFlask({ size = 18, color = COLORS.tealDark }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2h8" />
+      <path d="M10 2v7l-5.2 9a1.8 1.8 0 0 0 1.6 2.6h11.2a1.8 1.8 0 0 0 1.6-2.6L14 9V2" />
+      <path d="M6.5 15h11" />
+    </svg>
+  );
+}
+function IconAlert({ size = 18, color = COLORS.red }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3.5 2.5 20h19L12 3.5z" />
+      <path d="M12 10v4" />
+      <circle cx="12" cy="17" r="0.9" fill={color} stroke="none" />
+    </svg>
+  );
+}
+function IconRadar({ size = 18, color = COLORS.amber }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.2" fill={color} stroke="none" />
+    </svg>
+  );
+}
+function IconArrowLeft({ size = 15, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 12H5" />
+      <path d="M11 18l-6-6 6-6" />
+    </svg>
+  );
+}
+function IconLightbulb({ size = 20, color = COLORS.amber }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18h6" />
+      <path d="M10 21h4" />
+      <path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6h5.4c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z" />
+    </svg>
+  );
+}
+function IconInfo({ size = 15, color = COLORS.tealDark }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5" strokeLinecap="round" />
+      <circle cx="12" cy="8" r="1" fill={color} stroke="none" />
+    </svg>
+  );
+}
+function IconDownload({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+function IconShield({ size = 18, color = COLORS.tealDark }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" />
+    </svg>
+  );
+}
+function IconTrend({ direction = 'flat', size = 18, color = COLORS.inkSoft }) {
+  const d = direction === 'up' ? 'M4 16l6-6 4 4 6-8' : direction === 'down' ? 'M4 8l6 6 4-4 6 8' : 'M4 12h16';
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  );
+}
+function IconBarChart({ size = 18, color = COLORS.inkSoft }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round">
+      <path d="M5 20V10" /><path d="M12 20V4" /><path d="M19 20v-7" />
+    </svg>
+  );
+}
+function IconTarget({ size = 18, color = COLORS.inkSoft }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8">
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.8" fill={color} stroke="none" />
+    </svg>
+  );
+}
+function IconLeaf({ size = 20, color = COLORS.tealDark }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" opacity="0.55">
+      <path d="M4 20c8 0 15-6 16-16-8 1-14 6-16 16z" />
+      <path d="M6 18c3-4 7-7 12-9" />
+    </svg>
+  );
+}
+
 const CustomDot = (props) => {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null) return null;
   return <circle cx={cx} cy={cy} r={5} fill={flagColor(payload.flag)} stroke="#fff" strokeWidth={1.5} />;
 };
+
+function OverviewStat({ icon, tint, count, label, valueColor }) {
+  return (
+    <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ width: 30, height: 30, borderRadius: '50%', background: tint, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {icon}
+      </div>
+      <div>
+        <div className="panel-num" style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.1, color: valueColor || COLORS.ink }}>{count}</div>
+        <div style={{ fontSize: 10.5, color: COLORS.inkSoft }}>{label}</div>
+      </div>
+    </div>
+  );
+}
 
 function todayISO() {
   const d = new Date();
@@ -302,12 +494,16 @@ export default function Panel() {
     const value = parseFloat(form.value);
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      date: form.date, test: testName, value, unit, low, high,
+      date: form.date, test: testName, value, unit, low, high, notes: '',
       flag: flagOf(value, low, high),
     };
     setEntries(prev => [...prev, entry]);
     setSelected(prev => prev.includes(testName) ? prev : [...prev, testName]);
     setForm(f => ({ ...f, value: '', low: '', high: '' }));
+  }
+
+  function updateNote(id, notes) {
+    setEntries(prev => prev.map(e => e.id === id ? { ...e, notes } : e));
   }
 
   function removeEntry(id) {
@@ -319,7 +515,7 @@ export default function Panel() {
       const lib = TEST_LIBRARY[test];
       return {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        date, test, value, unit: lib.unit, low: lib.low, high: lib.high,
+        date, test, value, unit: lib.unit, low: lib.low, high: lib.high, notes: '',
         flag: flagOf(value, lib.low, lib.high),
       };
     });
@@ -350,7 +546,7 @@ export default function Panel() {
             const unit = norm.unit || (lib ? lib.unit : '');
             built.push({
               id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-              date, test, value, unit, low, high,
+              date, test, value, unit, low, high, notes: norm.notes || '',
               flag: flagOf(value, low, high),
             });
           }
@@ -373,6 +569,9 @@ export default function Panel() {
   }
 
   const flaggedCount = entries.filter(e => e.flag === 'high' || e.flag === 'low').length;
+  const monitorCount = testNames.filter(t => statusOf(byTest[t]) === 'Monitor').length;
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [noteDraft, setNoteDraft] = useState('');
 
   const singleMode = selected.length === 1;
   const compareMode = selected.length > 1;
@@ -420,54 +619,25 @@ export default function Panel() {
         .test-row.active { background: ${COLORS.tealSoft}; border-color: ${COLORS.teal}; }
       `}</style>
 
-      <div style={{ padding: '28px 32px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
-        <div className="panel-h1" style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-0.01em', textAlign: 'center' }}>Panel</div>
-        <div style={{ fontSize: 14, color: COLORS.inkSoft, margin: '4px auto 0', maxWidth: 520, textAlign: 'center' }}>
-          Track blood work over time. Enter results by hand or import a file, and watch each marker trend against its reference range.
-        </div>
-
-        <div style={{ maxWidth: 420, margin: '18px auto 0', border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '14px 16px', background: COLORS.card }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: profileOpen ? 10 : 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: COLORS.inkSoft }}>Patient profile</div>
-            <button className="panel-btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => setProfileOpen(o => !o)}>{profileOpen ? 'Hide' : 'Edit'}</button>
-          </div>
-
-          {!profileOpen && (
-            <div style={{ fontSize: 14, textAlign: 'center' }}>
-              {profile.name ? <span style={{ fontWeight: 500 }}>{profile.name}</span> : <span style={{ color: COLORS.inkSoft }}>No name set</span>}
-              {profile.dob && ageFromDOB(profile.dob) != null && <span style={{ color: COLORS.inkSoft }}> · {ageFromDOB(profile.dob)} yrs</span>}
-              {profile.sex && <span style={{ color: COLORS.inkSoft }}> · {profile.sex}</span>}
-            </div>
-          )}
-
-          {profileOpen && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <input className="panel-input" placeholder="Full name" value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} />
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input className="panel-input" type="date" placeholder="Date of birth" value={profile.dob} onChange={e => setProfile(p => ({ ...p, dob: e.target.value }))} />
-                <select className="panel-select" value={profile.sex} onChange={e => setProfile(p => ({ ...p, sex: e.target.value }))}>
-                  <option value="">Sex (optional)</option>
-                  <option value="Female">Female</option>
-                  <option value="Male">Male</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {entries.length > 0 && (
-          <div style={{ display: 'flex', gap: 24, marginTop: 16, justifyContent: 'center' }}>
-            <div><span className="panel-num" style={{ fontSize: 20, fontWeight: 500 }}>{entries.length}</span> <span style={{ fontSize: 12, color: COLORS.inkSoft }}>results</span></div>
-            <div><span className="panel-num" style={{ fontSize: 20, fontWeight: 500 }}>{testNames.length}</span> <span style={{ fontSize: 12, color: COLORS.inkSoft }}>tests tracked</span></div>
-            <div><span className="panel-num" style={{ fontSize: 20, fontWeight: 500, color: flaggedCount ? COLORS.red : COLORS.ink }}>{flaggedCount}</span> <span style={{ fontSize: 12, color: COLORS.inkSoft }}>outside range</span></div>
-          </div>
-        )}
-      </div>
-
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>
         {/* Sidebar */}
-        <div style={{ width: 300, minWidth: 260, flex: '0 0 300px', borderRight: `1px solid ${COLORS.border}`, padding: '20px 20px 32px' }}>
+        <div style={{ width: 300, minWidth: 260, flex: '0 0 300px', borderRight: `1px solid ${COLORS.border}`, padding: '24px 20px 32px' }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: COLORS.tealSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <IconVial size={22} />
+            </div>
+            <div className="panel-h1" style={{ fontSize: 24, fontWeight: 600 }}>Panel</div>
+          </div>
+          <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: 22 }}>Track blood work over time.</div>
+
+          <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.inkSoft, marginBottom: 10 }}>Overview</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 28 }}>
+            <OverviewStat icon={<IconLink size={15} />} tint={COLORS.tealSoft} count={entries.length} label="Total results" />
+            <OverviewStat icon={<IconFlask size={15} />} tint={COLORS.tealSoft} count={testNames.length} label="Tests tracked" />
+            <OverviewStat icon={<IconAlert size={15} />} tint={COLORS.redSoft} count={flaggedCount} label="Outside range" valueColor={flaggedCount ? COLORS.red : COLORS.ink} />
+            <OverviewStat icon={<IconRadar size={15} />} tint={COLORS.amberSoft} count={monitorCount} label="Needs monitoring" valueColor={monitorCount ? COLORS.amber : COLORS.ink} />
+          </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: COLORS.inkSoft }}>Add a result</div>
@@ -543,6 +713,45 @@ export default function Panel() {
 
         {/* Main */}
         <div style={{ flex: 1, minWidth: 320, padding: '24px 28px 32px' }}>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', marginBottom: 20 }}>
+            <div>
+              {selected.length > 0 && (
+                <span onClick={() => setSelected([])} style={{ cursor: 'pointer', color: COLORS.tealDark, fontSize: 13.5, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <IconArrowLeft size={14} /> Back to all tests
+                </span>
+              )}
+            </div>
+
+            <div style={{ width: 260, flexShrink: 0, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '12px 14px', background: COLORS.card }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: profileOpen ? 10 : 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: COLORS.inkSoft }}>Patient profile</div>
+                <button className="panel-btn" style={{ padding: '3px 8px', fontSize: 11.5 }} onClick={() => setProfileOpen(o => !o)}>{profileOpen ? 'Hide' : 'Edit'}</button>
+              </div>
+
+              {!profileOpen && (
+                <div style={{ fontSize: 13 }}>
+                  {profile.name ? <span style={{ fontWeight: 500 }}>{profile.name}</span> : <span style={{ color: COLORS.inkSoft }}>No name set</span>}
+                  {profile.dob && ageFromDOB(profile.dob) != null && <span style={{ color: COLORS.inkSoft }}> · {ageFromDOB(profile.dob)} yrs</span>}
+                  {profile.sex && <span style={{ color: COLORS.inkSoft }}> · {profile.sex}</span>}
+                </div>
+              )}
+
+              {profileOpen && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input className="panel-input" placeholder="Full name" value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} />
+                  <input className="panel-input" type="date" placeholder="Date of birth" value={profile.dob} onChange={e => setProfile(p => ({ ...p, dob: e.target.value }))} />
+                  <select className="panel-select" value={profile.sex} onChange={e => setProfile(p => ({ ...p, sex: e.target.value }))}>
+                    <option value="">Sex (optional)</option>
+                    <option value="Female">Female</option>
+                    <option value="Male">Male</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
           {entries.length === 0 && (
             <div style={{ textAlign: 'center', padding: '60px 20px', color: COLORS.inkSoft }}>
               <div className="panel-h1" style={{ fontSize: 20, marginBottom: 8, color: COLORS.ink }}>Nothing charted yet</div>
@@ -556,82 +765,208 @@ export default function Panel() {
             </div>
           )}
 
-          {singleMode && singleData.length > 0 && (
-            <div>
-              <div className="panel-h1" style={{ fontSize: 20, fontWeight: 600, marginBottom: 2 }}>{selected[0]}</div>
-              <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: TEST_INFO[selected[0]] ? 8 : 16 }}>
-                {singleRef && singleRef.low != null && singleRef.high != null
-                  ? `Reference range ${singleRef.low}–${singleRef.high} ${singleRef.unit}`
-                  : 'No reference range set for this test'}
-              </div>
-              {TEST_INFO[selected[0]] && (
-                <div style={{ fontSize: 13, color: COLORS.inkSoft, lineHeight: 1.6, maxWidth: 560, marginBottom: 16 }}>
-                  {TEST_INFO[selected[0]]}
+          {singleMode && singleData.length > 0 && (() => {
+            const status = statusOf(singleData);
+            const trend = trendOf(singleData);
+            const last3 = last3Summary(singleData);
+            const baseline = baselineOf(singleData);
+            const conclusion = status ? overallConclusion(status) : null;
+            const latestCmp = baseline != null ? comparedToBaseline(singleData[singleData.length - 1].value, baseline) : null;
+            const cmpWord = (cmp, style) => {
+              if (!cmp) return '–';
+              if (style === 'usual') return cmp.direction === 'higher' ? 'Higher than usual' : cmp.direction === 'lower' ? 'Lower than usual' : 'About usual';
+              return cmp.direction === 'higher' ? 'Higher than your baseline' : cmp.direction === 'lower' ? 'Lower than your baseline' : 'About your baseline';
+            };
+
+            return (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <div className="panel-h1" style={{ fontSize: 24, fontWeight: 600 }}>{selected[0]}</div>
+                  {status && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                      color: statusColor(status), background: statusBg(status), padding: '4px 10px', borderRadius: 100,
+                    }}>{status}</span>
+                  )}
                 </div>
-              )}
-              <div style={{ height: 280 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={singleData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke={COLORS.border} vertical={false} />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: COLORS.inkSoft }} />
-                    <YAxis tick={{ fontSize: 11, fill: COLORS.inkSoft }} domain={['auto', 'auto']} width={44} />
-                    {singleRef && singleRef.low != null && singleRef.high != null && (
-                      <ReferenceArea y1={singleRef.low} y2={singleRef.high} fill={COLORS.teal} fillOpacity={0.12} strokeOpacity={0} />
-                    )}
-                    <Tooltip
-                      formatter={(v, n, p) => [`${v} ${p.payload.unit} (${flagLabel(p.payload.flag)})`, selected[0]]}
-                      labelFormatter={fmtDate}
-                      contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${COLORS.border}` }}
-                    />
-                    <Line type="monotone" dataKey="value" stroke={COLORS.tealDark} strokeWidth={2} dot={<CustomDot />} activeDot={{ r: 7 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {(() => {
-                const trend = trendOf(singleData);
-                if (!trend) {
-                  return (
-                    <div style={{ fontSize: 12.5, color: COLORS.inkSoft, marginTop: 10 }}>
-                      Add another result to start seeing a trend.
-                    </div>
-                  );
-                }
-                return (
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12,
-                    fontSize: 13, fontWeight: 500, color: trend.tone,
-                  }}>
-                    <span style={{ fontSize: 14 }}>{trend.icon}</span>
-                    {trend.label}
+                <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: TEST_INFO[selected[0]] ? 8 : 16 }}>
+                  {singleRef && singleRef.low != null && singleRef.high != null
+                    ? `Reference range: ${singleRef.low}–${singleRef.high} ${singleRef.unit}`
+                    : 'No reference range set for this test'}
+                </div>
+                {TEST_INFO[selected[0]] && (
+                  <div style={{ fontSize: 13, color: COLORS.inkSoft, lineHeight: 1.6, maxWidth: 560, marginBottom: 18 }}>
+                    {TEST_INFO[selected[0]]}
                   </div>
-                );
-              })()}
+                )}
 
-              <table style={{ width: '100%', fontSize: 13, marginTop: 20, borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${COLORS.border}`, color: COLORS.inkSoft, textAlign: 'left' }}>
-                    <th style={{ padding: '6px 4px', fontWeight: 500 }}>Date</th>
-                    <th style={{ padding: '6px 4px', fontWeight: 500 }}>Value</th>
-                    <th style={{ padding: '6px 4px', fontWeight: 500 }}>Status</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...singleData].reverse().map(e => (
-                    <tr key={e.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                      <td style={{ padding: '7px 4px' }}>{fmtDate(e.date)}</td>
-                      <td className="panel-num" style={{ padding: '7px 4px' }}>{e.value} {e.unit}</td>
-                      <td style={{ padding: '7px 4px', color: flagColor(e.flag), fontWeight: 500 }}>{flagLabel(e.flag)}</td>
-                      <td style={{ padding: '7px 4px', textAlign: 'right' }}>
-                        <span onClick={() => removeEntry(e.id)} style={{ cursor: 'pointer', color: COLORS.inkSoft, fontSize: 12 }}>Remove</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                {trend ? (
+                  <div style={{
+                    display: 'flex', gap: 14, alignItems: 'flex-start', border: `1px solid ${COLORS.border}`,
+                    background: COLORS.amberSoft, borderRadius: 12, padding: '16px 18px', marginBottom: 22, maxWidth: 640,
+                  }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <IconLightbulb size={18} />
+                    </div>
+                    <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+                      <div style={{ fontWeight: 600, color: COLORS.ink }}>{trend.label}</div>
+                      {last3 && (
+                        <div style={{ color: COLORS.inkSoft, marginTop: 2 }}>
+                          {last3.direction === 'steady'
+                            ? `Holding steady over the last ${last3.windowSize} result${last3.windowSize === 1 ? '' : 's'}.`
+                            : `Trending ${last3.direction === 'down' ? 'downward' : 'upward'} over the last ${last3.windowSize} results.`}
+                        </div>
+                      )}
+                      {conclusion && <div style={{ color: conclusion.color, fontWeight: 600, marginTop: 4 }}>{conclusion.label}.</div>}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: COLORS.inkSoft, marginBottom: 20 }}>Add another result to start seeing a trend.</div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 18, fontSize: 11.5, color: COLORS.inkSoft, marginBottom: 6, flexWrap: 'wrap' }}>
+                  {singleRef && singleRef.low != null && singleRef.high != null && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 12, height: 12, borderRadius: 3, background: COLORS.teal, display: 'inline-block', opacity: 0.5 }} />
+                      Reference range ({singleRef.low}–{singleRef.high} {singleRef.unit})
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.tealDark, display: 'inline-block' }} />
+                    Your results
+                  </div>
+                </div>
+
+                <div style={{ height: 280 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={singleData} margin={{ top: 26, right: 24, bottom: 0, left: 0 }}>
+                      <CartesianGrid stroke={COLORS.border} vertical={false} />
+                      <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: COLORS.inkSoft }} />
+                      <YAxis tick={{ fontSize: 11, fill: COLORS.inkSoft }} domain={['auto', 'auto']} width={44} />
+                      {singleRef && singleRef.low != null && singleRef.high != null && (
+                        <ReferenceArea y1={singleRef.low} y2={singleRef.high} fill={COLORS.teal} fillOpacity={0.12} strokeOpacity={0} />
+                      )}
+                      <Tooltip
+                        formatter={(v, n, p) => [`${v} ${p.payload.unit} (${flagLabel(p.payload.flag)})`, selected[0]]}
+                        labelFormatter={fmtDate}
+                        contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${COLORS.border}` }}
+                      />
+                      <Line
+                        type="monotone" dataKey="value" stroke={COLORS.tealDark} strokeWidth={2}
+                        dot={<CustomDot />} activeDot={{ r: 7 }}
+                        label={{ position: 'top', fontSize: 11, fill: COLORS.inkSoft }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: COLORS.inkSoft,
+                  background: COLORS.paperDeep || '#F3ECE7', border: `1px solid ${COLORS.border}`, borderRadius: 8,
+                  padding: '10px 14px', marginTop: 8, marginBottom: 24,
+                }}>
+                  <IconInfo size={14} />
+                  {selected[0]} can vary day to day. Look at the overall trend, not a single number.
+                </div>
+
+                <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 460px', minWidth: 320 }}>
+                    <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: `1px solid ${COLORS.border}`, color: COLORS.inkSoft, textAlign: 'left' }}>
+                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Date</th>
+                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Value</th>
+                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Status</th>
+                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Compared to your baseline</th>
+                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Notes</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...singleData].reverse().map(e => {
+                          const cmp = baseline != null ? comparedToBaseline(e.value, baseline) : null;
+                          return (
+                            <tr key={e.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                              <td style={{ padding: '7px 4px', whiteSpace: 'nowrap' }}>{fmtDate(e.date)}</td>
+                              <td className="panel-num" style={{ padding: '7px 4px' }}>{e.value} {e.unit}</td>
+                              <td style={{ padding: '7px 4px', color: flagColor(e.flag), fontWeight: 500, whiteSpace: 'nowrap' }}>{flagLabel(e.flag)}</td>
+                              <td style={{ padding: '7px 4px', whiteSpace: 'nowrap' }}>{cmp ? `${cmpWord(cmp, 'baseline')} ${cmp.icon}` : '–'}</td>
+                              <td style={{ padding: '7px 4px', minWidth: 130 }}>
+                                {editingNoteId === e.id ? (
+                                  <input
+                                    className="panel-input" autoFocus style={{ fontSize: 12, padding: '4px 6px' }}
+                                    value={noteDraft}
+                                    onChange={ev => setNoteDraft(ev.target.value)}
+                                    onBlur={() => { updateNote(e.id, noteDraft); setEditingNoteId(null); }}
+                                    onKeyDown={ev => { if (ev.key === 'Enter') { updateNote(e.id, noteDraft); setEditingNoteId(null); } }}
+                                  />
+                                ) : (
+                                  <span
+                                    onClick={() => { setEditingNoteId(e.id); setNoteDraft(e.notes || ''); }}
+                                    style={{ cursor: 'pointer', color: e.notes ? COLORS.ink : COLORS.inkSoft }}
+                                  >
+                                    {e.notes ? e.notes : '–'}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '7px 4px', textAlign: 'right' }}>
+                                <span onClick={() => removeEntry(e.id)} style={{ cursor: 'pointer', color: COLORS.inkSoft, fontSize: 12 }}>Remove</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, fontSize: 11.5, color: COLORS.inkSoft, flexWrap: 'wrap', gap: 8 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconInfo size={13} /> Baseline calculated from your available results.</span>
+                      <span onClick={() => downloadCSV(selected[0], singleData)} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, color: COLORS.tealDark, fontWeight: 500 }}>
+                        <IconDownload size={13} /> Download CSV
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ width: 230, flexShrink: 0, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: '18px 18px 8px', background: COLORS.card }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.inkSoft, marginBottom: 16 }}>Key takeaways</div>
+
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                      <IconTrend direction={last3 ? last3.direction : 'flat'} size={17} />
+                      <div>
+                        <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Trend</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{last3 ? (last3.direction === 'up' ? 'Upward' : last3.direction === 'down' ? 'Downward' : 'Steady') : '–'}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                      <IconBarChart size={17} />
+                      <div>
+                        <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Change (last {last3 ? last3.windowSize : 0} results)</div>
+                        <div className="panel-num" style={{ fontSize: 13.5, fontWeight: 600 }}>
+                          {last3 ? `${last3.change > 0 ? '+' : ''}${Math.round(last3.change * 100) / 100} ${last3.unit}` : '–'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                      <IconTarget size={17} />
+                      <div>
+                        <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Compared to baseline</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{latestCmp ? `${cmpWord(latestCmp, 'usual')} ${latestCmp.icon}` : '–'}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                      <IconShield size={17} color={conclusion ? conclusion.color : COLORS.inkSoft} />
+                      <div>
+                        <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Overall</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: conclusion ? conclusion.color : COLORS.ink }}>{conclusion ? conclusion.label : '–'}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {compareMode && (
             <div>
@@ -659,11 +994,13 @@ export default function Panel() {
         </div>
       </div>
 
-      <div style={{ padding: '14px 32px', borderTop: `1px solid ${COLORS.border}`, fontSize: 11, color: COLORS.inkSoft }}>
-        Reference ranges are typical adult defaults and vary by lab and individual — confirm against your own lab report, not a substitute for medical advice.
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 32px', borderTop: `1px solid ${COLORS.border}`, fontSize: 11, color: COLORS.inkSoft }}>
+        <IconShield size={16} color={COLORS.inkSoft} />
+        <span>Reference ranges are typical adult defaults and vary by lab and individual — confirm against your own lab report, not a substitute for medical advice.</span>
       </div>
-      <div style={{ padding: '10px 32px 20px', textAlign: 'center', fontSize: 11.5, color: COLORS.inkSoft }}>
-        A project of <span className="panel-h1" style={{ fontStyle: 'italic', color: COLORS.tealDark }}>Dr. Fatima Azhar</span> — part of a wider vision to make health data understandable, trackable, and actionable for every patient.
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '10px 32px 20px', textAlign: 'center', fontSize: 11.5, color: COLORS.inkSoft }}>
+        <span>A project of <span className="panel-h1" style={{ fontStyle: 'italic', color: COLORS.tealDark }}>Dr. Fatima Azhar</span> — part of a wider vision to make health data understandable, trackable, and actionable for every patient.</span>
+        <IconLeaf size={18} />
       </div>
     </div>
   );

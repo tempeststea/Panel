@@ -40,6 +40,42 @@ const TEST_LIBRARY = {
   'HbA1c': { unit: '%', low: 4.0, high: 5.6 },
   'Serum Calcium': { unit: 'mg/dL', low: 8.5, high: 10.5 },
   'Vitamin D': { unit: 'ng/mL', low: 30, high: 100 },
+  'Insulin': { unit: 'µIU/mL', low: 2.6, high: 24.9 },
+  'T3': { unit: 'ng/dL', low: 80, high: 200 },
+  'T4': { unit: 'µg/dL', low: 5.0, high: 12.0 },
+  'Vitamin B12': { unit: 'pg/mL', low: 200, high: 900 },
+  'ALP': { unit: 'U/L', low: 44, high: 147 },
+  'Bilirubin': { unit: 'mg/dL', low: 0.1, high: 1.2 },
+};
+
+const TEST_INFO = {
+  'Hemoglobin': 'Carries oxygen in your blood — low levels can lead to fatigue, especially if declining over time.',
+  'Hematocrit': 'Reflects the share of blood made up of red cells — tracks closely with hemoglobin and can signal anemia or dehydration.',
+  'White Blood Cells': 'Reflects immune system activity — elevated levels often point to infection or inflammation, while low levels may suggest reduced immune defense.',
+  'Platelets': 'Responsible for blood clotting — low levels can raise bleeding risk, while high levels may raise clotting risk.',
+  'Glucose': 'Measures blood sugar at a single point in time — persistently high levels are linked to insulin resistance and diabetes risk.',
+  'Sodium': 'Regulates fluid balance and nerve function — imbalances often reflect hydration status or kidney and hormonal issues.',
+  'Potassium': 'Essential for heart and muscle function — even small deviations can affect heart rhythm and deserve prompt attention.',
+  'Creatinine': 'A byproduct of muscle metabolism cleared by the kidneys — rising levels can indicate reduced kidney function.',
+  'BUN': 'Reflects kidney filtration and protein breakdown — elevated levels can point to kidney strain or dehydration.',
+  'Total Cholesterol': 'An overall measure of cholesterol in the blood — persistently high levels are linked to cardiovascular risk over time.',
+  'LDL': 'Often called "bad" cholesterol — higher levels contribute to plaque buildup in arteries over time.',
+  'HDL': 'Often called "good" cholesterol — higher levels are generally protective for heart health.',
+  'Triglycerides': 'A type of fat in the blood — elevated levels are linked to diet, metabolic health, and cardiovascular risk.',
+  'TSH': 'Signals the thyroid to produce hormone — high levels often indicate an underactive thyroid, low levels an overactive one.',
+  'ALT': 'An enzyme released when liver cells are damaged — rising levels can indicate liver stress or injury.',
+  'AST': 'Found in liver and muscle tissue — elevated levels can reflect liver damage or, less specifically, muscle injury.',
+  'Serum Iron': 'Measures circulating iron — levels can fluctuate and should be interpreted alongside other markers.',
+  'Serum Ferritin': 'Reflects stored iron — low levels may indicate depleted reserves even before anemia develops.',
+  'HbA1c': 'Shows average blood sugar over time — higher levels suggest sustained elevated glucose.',
+  'Serum Calcium': 'Important for bone, muscle, and nerve function — abnormal levels can point to bone, kidney, or parathyroid issues.',
+  'Vitamin D': 'Supports bone health and immune function — low levels are common and linked to fatigue and bone discomfort.',
+  'Insulin': 'Regulates blood sugar by helping cells absorb glucose — elevated fasting levels can be an early sign of insulin resistance.',
+  'T3': 'An active thyroid hormone that drives metabolism — levels shift with both thyroid conditions and overall illness.',
+  'T4': 'The main hormone produced by the thyroid — helps confirm whether a TSH change reflects true thyroid dysfunction.',
+  'Vitamin B12': 'Supports nerve function and red blood cell production — low levels can cause fatigue, numbness, or memory issues.',
+  'ALP': 'An enzyme found in liver and bone tissue — elevated levels can point to liver, bile duct, or bone conditions.',
+  'Bilirubin': 'A byproduct of red blood cell breakdown processed by the liver — elevated levels can indicate liver dysfunction or increased red cell turnover.',
 };
 
 const SAMPLE = [
@@ -83,27 +119,36 @@ function trendOf(list) {
   const values = list.map(e => e.value);
   const n = values.length;
   const last = values[n - 1];
+  const lastEntry = list[n - 1];
   const hist = values.slice(0, -1);
   const histMean = hist.reduce((a, b) => a + b, 0) / hist.length;
   const histStd = hist.length > 1
     ? Math.sqrt(hist.reduce((a, b) => a + (b - histMean) ** 2, 0) / hist.length)
     : Math.abs(histMean) * 0.08;
   const spread = Math.max(histStd, Math.abs(histMean) * 0.04, 0.01);
+  const deviates = Math.abs(last - histMean) > spread * 1.6;
 
-  // A sharp jump away from this person's own history, regardless of direction.
-  if (Math.abs(last - histMean) > spread * 1.6) {
-    return { label: 'Outside your usual range', icon: '◆', tone: COLORS.amber };
+  if (deviates) {
+    const direction = last > histMean ? 'higher' : 'lower';
+    const icon = direction === 'higher' ? '↑' : '↓';
+    if (lastEntry.flag === 'normal') {
+      return {
+        label: `Still within range, but ${direction} than your usual baseline.`,
+        icon, tone: COLORS.amber, deviates: true,
+      };
+    }
+    return { label: 'Outside your usual range', icon: '◆', tone: COLORS.amber, deviates: true };
   }
 
   const first = values[0];
   const pctChange = first !== 0 ? (last - first) / Math.abs(first) : (last - first);
   if (Math.abs(pctChange) < 0.05) {
-    return { label: 'Stable over time', icon: '→', tone: COLORS.inkSoft };
+    return { label: 'Stable over time', icon: '→', tone: COLORS.inkSoft, deviates: false };
   }
   if (last > first) {
-    return { label: 'Gradually increasing', icon: '↑', tone: COLORS.inkSoft };
+    return { label: 'Gradually increasing', icon: '↑', tone: COLORS.inkSoft, deviates: false };
   }
-  return { label: 'Recently decreased', icon: '↓', tone: COLORS.inkSoft };
+  return { label: 'Recently decreased', icon: '↓', tone: COLORS.inkSoft, deviates: false };
 }
 
 // Status shown in the test list: reflects both where the latest value sits
@@ -118,7 +163,7 @@ function statusOf(list) {
   if (last.flag === 'unknown') return 'Monitor';
 
   if (last.flag === 'normal') {
-    return trend && trend.label === 'Outside your usual range' ? 'Monitor' : 'Normal';
+    return trend && trend.deviates ? 'Monitor' : 'Normal';
   }
 
   // high or low — gauge how far past the boundary, relative to the range's own width
@@ -514,11 +559,16 @@ export default function Panel() {
           {singleMode && singleData.length > 0 && (
             <div>
               <div className="panel-h1" style={{ fontSize: 20, fontWeight: 600, marginBottom: 2 }}>{selected[0]}</div>
-              <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: TEST_INFO[selected[0]] ? 8 : 16 }}>
                 {singleRef && singleRef.low != null && singleRef.high != null
                   ? `Reference range ${singleRef.low}–${singleRef.high} ${singleRef.unit}`
                   : 'No reference range set for this test'}
               </div>
+              {TEST_INFO[selected[0]] && (
+                <div style={{ fontSize: 13, color: COLORS.inkSoft, lineHeight: 1.6, maxWidth: 560, marginBottom: 16 }}>
+                  {TEST_INFO[selected[0]]}
+                </div>
+              )}
               <div style={{ height: 280 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={singleData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>

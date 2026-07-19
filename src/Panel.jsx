@@ -203,6 +203,12 @@ function comparedToBaseline(value, baseline) {
   return { direction: 'about', icon: '→' };
 }
 
+function cmpWord(cmp, style) {
+  if (!cmp) return '–';
+  if (style === 'usual') return cmp.direction === 'higher' ? 'Higher than usual' : cmp.direction === 'lower' ? 'Lower than usual' : 'About usual';
+  return cmp.direction === 'higher' ? 'Higher than your baseline' : cmp.direction === 'lower' ? 'Lower than your baseline' : 'About your baseline';
+}
+
 // A short read on the last few results specifically (distinct from the
 // whole-history trend), plus the numeric swing across that same window.
 function last3Summary(list) {
@@ -373,6 +379,48 @@ function OverviewStat({ icon, tint, count, label, valueColor }) {
       <div>
         <div className="panel-num" style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.1, color: valueColor || COLORS.ink }}>{count}</div>
         <div style={{ fontSize: 10.5, color: COLORS.inkSoft }}>{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function KeyTakeawaysPanel({ status, last3, latestCmp, conclusion }) {
+  return (
+    <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: '18px 18px 8px', background: COLORS.card }}>
+      <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.inkSoft, marginBottom: 16 }}>Key takeaways</div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <IconTrend direction={last3 ? last3.direction : 'flat'} size={17} />
+        <div>
+          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Trend</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{last3 ? (last3.direction === 'up' ? 'Upward' : last3.direction === 'down' ? 'Downward' : 'Steady') : '–'}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <IconBarChart size={17} />
+        <div>
+          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Change (last {last3 ? last3.windowSize : 0} results)</div>
+          <div className="panel-num" style={{ fontSize: 13.5, fontWeight: 600 }}>
+            {last3 ? `${last3.change > 0 ? '+' : ''}${Math.round(last3.change * 100) / 100} ${last3.unit}` : '–'}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <IconTarget size={17} />
+        <div>
+          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Compared to baseline</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{latestCmp ? `${cmpWord(latestCmp, 'usual')} ${latestCmp.icon}` : '–'}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <IconShield size={17} color={conclusion ? conclusion.color : COLORS.inkSoft} />
+        <div>
+          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Overall</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: conclusion ? conclusion.color : COLORS.ink }}>{conclusion ? conclusion.label : '–'}</div>
+        </div>
       </div>
     </div>
   );
@@ -578,6 +626,12 @@ export default function Panel() {
 
   const singleData = singleMode ? byTest[selected[0]] : [];
   const singleRef = singleMode && singleData.length ? { low: singleData[0].low, high: singleData[0].high, unit: singleData[0].unit } : null;
+  const singleStatus = singleMode && singleData.length > 0 ? statusOf(singleData) : null;
+  const singleTrend = singleMode && singleData.length > 0 ? trendOf(singleData) : null;
+  const singleLast3 = singleMode && singleData.length > 0 ? last3Summary(singleData) : null;
+  const singleBaseline = singleMode && singleData.length > 0 ? baselineOf(singleData) : null;
+  const singleConclusion = singleStatus ? overallConclusion(singleStatus) : null;
+  const singleLatestCmp = (singleBaseline != null && singleData.length > 0) ? comparedToBaseline(singleData[singleData.length - 1].value, singleBaseline) : null;
 
   const compareData = useMemo(() => {
     if (!compareMode) return [];
@@ -712,18 +766,206 @@ export default function Panel() {
         </div>
 
         {/* Main */}
-        <div style={{ flex: 1, minWidth: 320, padding: '24px 28px 32px' }}>
+        <div style={{ flex: 1, minWidth: 320, padding: '24px 28px 32px', display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', marginBottom: 20 }}>
-            <div>
-              {selected.length > 0 && (
+          {/* Left: back link + content for whichever state is active */}
+          <div style={{ flex: '1 1 420px', minWidth: 320 }}>
+            {selected.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
                 <span onClick={() => setSelected([])} style={{ cursor: 'pointer', color: COLORS.tealDark, fontSize: 13.5, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <IconArrowLeft size={14} /> Back to all tests
                 </span>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div style={{ width: 260, flexShrink: 0, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '12px 14px', background: COLORS.card }}>
+            {entries.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: COLORS.inkSoft }}>
+              <div className="panel-h1" style={{ fontSize: 20, marginBottom: 8, color: COLORS.ink }}>Nothing charted yet</div>
+              <div style={{ fontSize: 14 }}>Add a result or import a CSV to start seeing trends.</div>
+            </div>
+          )}
+
+          {entries.length > 0 && selected.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: COLORS.inkSoft, fontSize: 14 }}>
+              Select a test from the left to see its trend. Select more than one to compare them side by side.
+            </div>
+          )}
+
+          {singleMode && singleData.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+                <div className="panel-h1" style={{ fontSize: 24, fontWeight: 600 }}>{selected[0]}</div>
+                {singleStatus && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                    color: statusColor(singleStatus), background: statusBg(singleStatus), padding: '4px 10px', borderRadius: 100,
+                  }}>{singleStatus}</span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: TEST_INFO[selected[0]] ? 8 : 16 }}>
+                {singleRef && singleRef.low != null && singleRef.high != null
+                  ? `Reference range: ${singleRef.low}–${singleRef.high} ${singleRef.unit}`
+                  : 'No reference range set for this test'}
+              </div>
+              {TEST_INFO[selected[0]] && (
+                <div style={{ fontSize: 13, color: COLORS.inkSoft, lineHeight: 1.6, maxWidth: 560, marginBottom: 18 }}>
+                  {TEST_INFO[selected[0]]}
+                </div>
+              )}
+
+              {singleTrend ? (
+                <div style={{
+                  display: 'flex', gap: 14, alignItems: 'flex-start', border: `1px solid ${COLORS.border}`,
+                  background: COLORS.amberSoft, borderRadius: 12, padding: '16px 18px', marginBottom: 22, maxWidth: 640,
+                }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <IconLightbulb size={18} />
+                  </div>
+                  <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+                    <div style={{ fontWeight: 600, color: COLORS.ink }}>{singleTrend.label}</div>
+                    {singleLast3 && (
+                      <div style={{ color: COLORS.inkSoft, marginTop: 2 }}>
+                        {singleLast3.direction === 'steady'
+                          ? `Holding steady over the last ${singleLast3.windowSize} result${singleLast3.windowSize === 1 ? '' : 's'}.`
+                          : `Trending ${singleLast3.direction === 'down' ? 'downward' : 'upward'} over the last ${singleLast3.windowSize} results.`}
+                      </div>
+                    )}
+                    {singleConclusion && <div style={{ color: singleConclusion.color, fontWeight: 600, marginTop: 4 }}>{singleConclusion.label}.</div>}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12.5, color: COLORS.inkSoft, marginBottom: 20 }}>Add another result to start seeing a trend.</div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 18, fontSize: 11.5, color: COLORS.inkSoft, marginBottom: 6, flexWrap: 'wrap' }}>
+                {singleRef && singleRef.low != null && singleRef.high != null && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: COLORS.teal, display: 'inline-block', opacity: 0.5 }} />
+                    Reference range ({singleRef.low}–{singleRef.high} {singleRef.unit})
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.tealDark, display: 'inline-block' }} />
+                  Your results
+                </div>
+              </div>
+
+              <div style={{ height: 280 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={singleData} margin={{ top: 26, right: 24, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke={COLORS.border} vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: COLORS.inkSoft }} />
+                    <YAxis tick={{ fontSize: 11, fill: COLORS.inkSoft }} domain={['auto', 'auto']} width={44} />
+                    {singleRef && singleRef.low != null && singleRef.high != null && (
+                      <ReferenceArea y1={singleRef.low} y2={singleRef.high} fill={COLORS.teal} fillOpacity={0.12} strokeOpacity={0} />
+                    )}
+                    <Tooltip
+                      formatter={(v, n, p) => [`${v} ${p.payload.unit} (${flagLabel(p.payload.flag)})`, selected[0]]}
+                      labelFormatter={fmtDate}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${COLORS.border}` }}
+                    />
+                    <Line
+                      type="linear" dataKey="value" stroke={COLORS.tealDark} strokeWidth={2}
+                      dot={<CustomDot />} activeDot={{ r: 7 }}
+                      label={{ position: 'top', fontSize: 11, fill: COLORS.inkSoft }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: COLORS.inkSoft,
+                background: COLORS.paperDeep || '#F3ECE7', border: `1px solid ${COLORS.border}`, borderRadius: 8,
+                padding: '10px 14px', marginTop: 8, marginBottom: 24,
+              }}>
+                <IconInfo size={14} />
+                {selected[0]} can vary day to day. Look at the overall trend, not a single number.
+              </div>
+
+              <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${COLORS.border}`, color: COLORS.inkSoft, textAlign: 'left' }}>
+                    <th style={{ padding: '6px 4px', fontWeight: 500 }}>Date</th>
+                    <th style={{ padding: '6px 4px', fontWeight: 500 }}>Value</th>
+                    <th style={{ padding: '6px 4px', fontWeight: 500 }}>Status</th>
+                    <th style={{ padding: '6px 4px', fontWeight: 500 }}>Compared to your baseline</th>
+                    <th style={{ padding: '6px 4px', fontWeight: 500 }}>Notes</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...singleData].reverse().map(e => {
+                    const cmp = singleBaseline != null ? comparedToBaseline(e.value, singleBaseline) : null;
+                    return (
+                      <tr key={e.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                        <td style={{ padding: '7px 4px', whiteSpace: 'nowrap' }}>{fmtDate(e.date)}</td>
+                        <td className="panel-num" style={{ padding: '7px 4px' }}>{e.value} {e.unit}</td>
+                        <td style={{ padding: '7px 4px', color: flagColor(e.flag), fontWeight: 500, whiteSpace: 'nowrap' }}>{flagLabel(e.flag)}</td>
+                        <td style={{ padding: '7px 4px', whiteSpace: 'nowrap' }}>{cmp ? `${cmpWord(cmp, 'baseline')} ${cmp.icon}` : '–'}</td>
+                        <td style={{ padding: '7px 4px', minWidth: 130 }}>
+                          {editingNoteId === e.id ? (
+                            <input
+                              className="panel-input" autoFocus style={{ fontSize: 12, padding: '4px 6px' }}
+                              value={noteDraft}
+                              onChange={ev => setNoteDraft(ev.target.value)}
+                              onBlur={() => { updateNote(e.id, noteDraft); setEditingNoteId(null); }}
+                              onKeyDown={ev => { if (ev.key === 'Enter') { updateNote(e.id, noteDraft); setEditingNoteId(null); } }}
+                            />
+                          ) : (
+                            <span
+                              onClick={() => { setEditingNoteId(e.id); setNoteDraft(e.notes || ''); }}
+                              style={{ cursor: 'pointer', color: e.notes ? COLORS.ink : COLORS.inkSoft }}
+                            >
+                              {e.notes ? e.notes : '–'}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '7px 4px', textAlign: 'right' }}>
+                          <span onClick={() => removeEntry(e.id)} style={{ cursor: 'pointer', color: COLORS.inkSoft, fontSize: 12 }}>Remove</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, fontSize: 11.5, color: COLORS.inkSoft, flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconInfo size={13} /> Baseline calculated from your available results.</span>
+                <span onClick={() => downloadCSV(selected[0], singleData)} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, color: COLORS.tealDark, fontWeight: 500 }}>
+                  <IconDownload size={13} /> Download CSV
+                </span>
+              </div>
+            </div>
+          )}
+
+          {compareMode && (
+            <div>
+              <div className="panel-h1" style={{ fontSize: 20, fontWeight: 600, marginBottom: 2 }}>Comparing {selected.length} tests</div>
+              <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: 16 }}>
+                Each line shows position within its own reference range (0–100%), so tests with different units can be read on one chart. The shaded band is the normal zone.
+              </div>
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={compareData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke={COLORS.border} vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: COLORS.inkSoft }} />
+                    <YAxis tick={{ fontSize: 11, fill: COLORS.inkSoft }} domain={[(dataMin) => Math.min(dataMin, -10), (dataMax) => Math.max(dataMax, 110)]} width={44} unit="%" />
+                    <ReferenceArea y1={0} y2={100} fill={COLORS.teal} fillOpacity={0.10} strokeOpacity={0} />
+                    <Tooltip labelFormatter={fmtDate} contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${COLORS.border}` }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {selected.map((t, i) => (
+                      <Line key={t} type="linear" dataKey={t} stroke={COLORS.overlay[i % COLORS.overlay.length]} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+          </div>
+
+          {/* Right column: Patient Profile, with Key Takeaways stacked directly beneath it */}
+          <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20, position: 'sticky', top: 20 }}>
+            <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '12px 14px', background: COLORS.card }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: profileOpen ? 10 : 0 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: COLORS.inkSoft }}>Patient profile</div>
                 <button className="panel-btn" style={{ padding: '3px 8px', fontSize: 11.5 }} onClick={() => setProfileOpen(o => !o)}>{profileOpen ? 'Hide' : 'Edit'}</button>
@@ -750,247 +992,11 @@ export default function Panel() {
                 </div>
               )}
             </div>
+
+            {singleMode && singleData.length > 0 && (
+              <KeyTakeawaysPanel status={singleStatus} last3={singleLast3} latestCmp={singleLatestCmp} conclusion={singleConclusion} />
+            )}
           </div>
-
-          {entries.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: COLORS.inkSoft }}>
-              <div className="panel-h1" style={{ fontSize: 20, marginBottom: 8, color: COLORS.ink }}>Nothing charted yet</div>
-              <div style={{ fontSize: 14 }}>Add a result or import a CSV to start seeing trends.</div>
-            </div>
-          )}
-
-          {entries.length > 0 && selected.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: COLORS.inkSoft, fontSize: 14 }}>
-              Select a test from the left to see its trend. Select more than one to compare them side by side.
-            </div>
-          )}
-
-          {singleMode && singleData.length > 0 && (() => {
-            const status = statusOf(singleData);
-            const trend = trendOf(singleData);
-            const last3 = last3Summary(singleData);
-            const baseline = baselineOf(singleData);
-            const conclusion = status ? overallConclusion(status) : null;
-            const latestCmp = baseline != null ? comparedToBaseline(singleData[singleData.length - 1].value, baseline) : null;
-            const cmpWord = (cmp, style) => {
-              if (!cmp) return '–';
-              if (style === 'usual') return cmp.direction === 'higher' ? 'Higher than usual' : cmp.direction === 'lower' ? 'Lower than usual' : 'About usual';
-              return cmp.direction === 'higher' ? 'Higher than your baseline' : cmp.direction === 'lower' ? 'Lower than your baseline' : 'About your baseline';
-            };
-
-            return (
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-                  <div className="panel-h1" style={{ fontSize: 24, fontWeight: 600 }}>{selected[0]}</div>
-                  {status && (
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
-                      color: statusColor(status), background: statusBg(status), padding: '4px 10px', borderRadius: 100,
-                    }}>{status}</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: TEST_INFO[selected[0]] ? 8 : 16 }}>
-                  {singleRef && singleRef.low != null && singleRef.high != null
-                    ? `Reference range: ${singleRef.low}–${singleRef.high} ${singleRef.unit}`
-                    : 'No reference range set for this test'}
-                </div>
-                {TEST_INFO[selected[0]] && (
-                  <div style={{ fontSize: 13, color: COLORS.inkSoft, lineHeight: 1.6, maxWidth: 560, marginBottom: 18 }}>
-                    {TEST_INFO[selected[0]]}
-                  </div>
-                )}
-
-                {trend ? (
-                  <div style={{
-                    display: 'flex', gap: 14, alignItems: 'flex-start', border: `1px solid ${COLORS.border}`,
-                    background: COLORS.amberSoft, borderRadius: 12, padding: '16px 18px', marginBottom: 22, maxWidth: 640,
-                  }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <IconLightbulb size={18} />
-                    </div>
-                    <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
-                      <div style={{ fontWeight: 600, color: COLORS.ink }}>{trend.label}</div>
-                      {last3 && (
-                        <div style={{ color: COLORS.inkSoft, marginTop: 2 }}>
-                          {last3.direction === 'steady'
-                            ? `Holding steady over the last ${last3.windowSize} result${last3.windowSize === 1 ? '' : 's'}.`
-                            : `Trending ${last3.direction === 'down' ? 'downward' : 'upward'} over the last ${last3.windowSize} results.`}
-                        </div>
-                      )}
-                      {conclusion && <div style={{ color: conclusion.color, fontWeight: 600, marginTop: 4 }}>{conclusion.label}.</div>}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 12.5, color: COLORS.inkSoft, marginBottom: 20 }}>Add another result to start seeing a trend.</div>
-                )}
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 18, fontSize: 11.5, color: COLORS.inkSoft, marginBottom: 6, flexWrap: 'wrap' }}>
-                  {singleRef && singleRef.low != null && singleRef.high != null && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ width: 12, height: 12, borderRadius: 3, background: COLORS.teal, display: 'inline-block', opacity: 0.5 }} />
-                      Reference range ({singleRef.low}–{singleRef.high} {singleRef.unit})
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.tealDark, display: 'inline-block' }} />
-                    Your results
-                  </div>
-                </div>
-
-                <div style={{ height: 280 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={singleData} margin={{ top: 26, right: 24, bottom: 0, left: 0 }}>
-                      <CartesianGrid stroke={COLORS.border} vertical={false} />
-                      <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: COLORS.inkSoft }} />
-                      <YAxis tick={{ fontSize: 11, fill: COLORS.inkSoft }} domain={['auto', 'auto']} width={44} />
-                      {singleRef && singleRef.low != null && singleRef.high != null && (
-                        <ReferenceArea y1={singleRef.low} y2={singleRef.high} fill={COLORS.teal} fillOpacity={0.12} strokeOpacity={0} />
-                      )}
-                      <Tooltip
-                        formatter={(v, n, p) => [`${v} ${p.payload.unit} (${flagLabel(p.payload.flag)})`, selected[0]]}
-                        labelFormatter={fmtDate}
-                        contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${COLORS.border}` }}
-                      />
-                      <Line
-                        type="monotone" dataKey="value" stroke={COLORS.tealDark} strokeWidth={2}
-                        dot={<CustomDot />} activeDot={{ r: 7 }}
-                        label={{ position: 'top', fontSize: 11, fill: COLORS.inkSoft }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: COLORS.inkSoft,
-                  background: COLORS.paperDeep || '#F3ECE7', border: `1px solid ${COLORS.border}`, borderRadius: 8,
-                  padding: '10px 14px', marginTop: 8, marginBottom: 24,
-                }}>
-                  <IconInfo size={14} />
-                  {selected[0]} can vary day to day. Look at the overall trend, not a single number.
-                </div>
-
-                <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <div style={{ flex: '1 1 460px', minWidth: 320 }}>
-                    <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ borderBottom: `1px solid ${COLORS.border}`, color: COLORS.inkSoft, textAlign: 'left' }}>
-                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Date</th>
-                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Value</th>
-                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Status</th>
-                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Compared to your baseline</th>
-                          <th style={{ padding: '6px 4px', fontWeight: 500 }}>Notes</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...singleData].reverse().map(e => {
-                          const cmp = baseline != null ? comparedToBaseline(e.value, baseline) : null;
-                          return (
-                            <tr key={e.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                              <td style={{ padding: '7px 4px', whiteSpace: 'nowrap' }}>{fmtDate(e.date)}</td>
-                              <td className="panel-num" style={{ padding: '7px 4px' }}>{e.value} {e.unit}</td>
-                              <td style={{ padding: '7px 4px', color: flagColor(e.flag), fontWeight: 500, whiteSpace: 'nowrap' }}>{flagLabel(e.flag)}</td>
-                              <td style={{ padding: '7px 4px', whiteSpace: 'nowrap' }}>{cmp ? `${cmpWord(cmp, 'baseline')} ${cmp.icon}` : '–'}</td>
-                              <td style={{ padding: '7px 4px', minWidth: 130 }}>
-                                {editingNoteId === e.id ? (
-                                  <input
-                                    className="panel-input" autoFocus style={{ fontSize: 12, padding: '4px 6px' }}
-                                    value={noteDraft}
-                                    onChange={ev => setNoteDraft(ev.target.value)}
-                                    onBlur={() => { updateNote(e.id, noteDraft); setEditingNoteId(null); }}
-                                    onKeyDown={ev => { if (ev.key === 'Enter') { updateNote(e.id, noteDraft); setEditingNoteId(null); } }}
-                                  />
-                                ) : (
-                                  <span
-                                    onClick={() => { setEditingNoteId(e.id); setNoteDraft(e.notes || ''); }}
-                                    style={{ cursor: 'pointer', color: e.notes ? COLORS.ink : COLORS.inkSoft }}
-                                  >
-                                    {e.notes ? e.notes : '–'}
-                                  </span>
-                                )}
-                              </td>
-                              <td style={{ padding: '7px 4px', textAlign: 'right' }}>
-                                <span onClick={() => removeEntry(e.id)} style={{ cursor: 'pointer', color: COLORS.inkSoft, fontSize: 12 }}>Remove</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, fontSize: 11.5, color: COLORS.inkSoft, flexWrap: 'wrap', gap: 8 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IconInfo size={13} /> Baseline calculated from your available results.</span>
-                      <span onClick={() => downloadCSV(selected[0], singleData)} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, color: COLORS.tealDark, fontWeight: 500 }}>
-                        <IconDownload size={13} /> Download CSV
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ width: 230, flexShrink: 0, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: '18px 18px 8px', background: COLORS.card }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.inkSoft, marginBottom: 16 }}>Key takeaways</div>
-
-                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                      <IconTrend direction={last3 ? last3.direction : 'flat'} size={17} />
-                      <div>
-                        <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Trend</div>
-                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{last3 ? (last3.direction === 'up' ? 'Upward' : last3.direction === 'down' ? 'Downward' : 'Steady') : '–'}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                      <IconBarChart size={17} />
-                      <div>
-                        <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Change (last {last3 ? last3.windowSize : 0} results)</div>
-                        <div className="panel-num" style={{ fontSize: 13.5, fontWeight: 600 }}>
-                          {last3 ? `${last3.change > 0 ? '+' : ''}${Math.round(last3.change * 100) / 100} ${last3.unit}` : '–'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                      <IconTarget size={17} />
-                      <div>
-                        <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Compared to baseline</div>
-                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{latestCmp ? `${cmpWord(latestCmp, 'usual')} ${latestCmp.icon}` : '–'}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                      <IconShield size={17} color={conclusion ? conclusion.color : COLORS.inkSoft} />
-                      <div>
-                        <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Overall</div>
-                        <div style={{ fontSize: 13.5, fontWeight: 600, color: conclusion ? conclusion.color : COLORS.ink }}>{conclusion ? conclusion.label : '–'}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {compareMode && (
-            <div>
-              <div className="panel-h1" style={{ fontSize: 20, fontWeight: 600, marginBottom: 2 }}>Comparing {selected.length} tests</div>
-              <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: 16 }}>
-                Each line shows position within its own reference range (0–100%), so tests with different units can be read on one chart. The shaded band is the normal zone.
-              </div>
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={compareData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke={COLORS.border} vertical={false} />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11, fill: COLORS.inkSoft }} />
-                    <YAxis tick={{ fontSize: 11, fill: COLORS.inkSoft }} domain={[(dataMin) => Math.min(dataMin, -10), (dataMax) => Math.max(dataMax, 110)]} width={44} unit="%" />
-                    <ReferenceArea y1={0} y2={100} fill={COLORS.teal} fillOpacity={0.10} strokeOpacity={0} />
-                    <Tooltip labelFormatter={fmtDate} contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${COLORS.border}` }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    {selected.map((t, i) => (
-                      <Line key={t} type="monotone" dataKey={t} stroke={COLORS.overlay[i % COLORS.overlay.length]} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

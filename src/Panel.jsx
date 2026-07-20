@@ -663,11 +663,29 @@ export default function Panel() {
   const monitorCount = testNames.filter(t => statusOf(byTest[t]) === 'Monitor').length;
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
-  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 780 : false));
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia ? window.matchMedia('(max-width: 780px)').matches : window.innerWidth <= 780;
+  });
   useEffect(() => {
-    function onResize() { setIsMobile(window.innerWidth <= 780); }
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia ? window.matchMedia('(max-width: 780px)') : null;
+    function check() { setIsMobile(mq ? mq.matches : window.innerWidth <= 780); }
+    check(); // re-measure right after mount, in case the very first synchronous read was premature
+    if (mq) {
+      if (mq.addEventListener) mq.addEventListener('change', check);
+      else mq.addListener(check); // older Safari/WebKit fallback
+    }
+    window.addEventListener('resize', check);
+    window.addEventListener('orientationchange', check);
+    return () => {
+      if (mq) {
+        if (mq.removeEventListener) mq.removeEventListener('change', check);
+        else mq.removeListener(check);
+      }
+      window.removeEventListener('resize', check);
+      window.removeEventListener('orientationchange', check);
+    };
   }, []);
 
   const singleMode = selected.length === 1;

@@ -659,6 +659,38 @@ export default function Panel() {
     );
   }
 
+  function renderProfileCard() {
+    return (
+      <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '12px 14px', background: COLORS.card }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: profileOpen ? 10 : 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: COLORS.inkSoft }}>Patient profile</div>
+          <button className="panel-btn" style={{ padding: '3px 8px', fontSize: 11.5 }} onClick={() => setProfileOpen(o => !o)}>{profileOpen ? 'Hide' : 'Edit'}</button>
+        </div>
+
+        {!profileOpen && (
+          <div style={{ fontSize: 13 }}>
+            {profile.name ? <span style={{ fontWeight: 500 }}>{profile.name}</span> : <span style={{ color: COLORS.inkSoft }}>No name set</span>}
+            {profile.dob && ageFromDOB(profile.dob) != null && <span style={{ color: COLORS.inkSoft }}> · {ageFromDOB(profile.dob)} yrs</span>}
+            {profile.sex && <span style={{ color: COLORS.inkSoft }}> · {profile.sex}</span>}
+          </div>
+        )}
+
+        {profileOpen && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input className="panel-input" placeholder="Full name" value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} />
+            <input className="panel-input" type="date" placeholder="Date of birth" value={profile.dob} onChange={e => setProfile(p => ({ ...p, dob: e.target.value }))} />
+            <select className="panel-select" value={profile.sex} onChange={e => setProfile(p => ({ ...p, sex: e.target.value }))}>
+              <option value="">Sex (optional)</option>
+              <option value="Female">Female</option>
+              <option value="Male">Male</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.paper, color: COLORS.ink, minHeight: '600px', padding: '0', borderRadius: 16 }}>
       <style>{`
@@ -674,19 +706,21 @@ export default function Panel() {
 
         .app-shell { display: flex; flex-wrap: wrap; gap: 0; }
         .sidebar-col { width: 300px; min-width: 260px; flex: 0 0 300px; border-right: 1px solid ${COLORS.border}; padding: 24px 20px 32px; box-sizing: border-box; }
-        .main-col { flex: 1; min-width: 320px; padding: 24px 28px 32px; display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; box-sizing: border-box; }
+        .main-col { flex: 1; min-width: 320px; padding: 24px 28px 32px; display: flex; flex-direction: row; gap: 24px; align-items: flex-start; flex-wrap: wrap; box-sizing: border-box; }
         .main-left-col { flex: 1 1 420px; min-width: 320px; }
         .main-right-col { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 20px; }
+        .profile-mobile-only { display: none; }
 
         @media (max-width: 780px) {
-          .sidebar-col { width: 100%; flex-basis: 100%; border-right: none; border-bottom: 1px solid ${COLORS.border}; }
-          .main-col { width: 100%; flex-basis: 100%; padding: 20px 16px 28px; flex-direction: column; }
-          .main-left-col { flex-basis: 100%; min-width: 0; }
-          .main-right-col { width: 100%; position: static; top: auto; }
+          .sidebar-col { width: 100% !important; flex-basis: 100% !important; border-right: none !important; border-bottom: 1px solid ${COLORS.border}; }
+          .main-col { width: 100% !important; flex-basis: 100% !important; padding: 20px 16px 28px !important; flex-direction: column !important; }
+          .main-left-col { flex-basis: 100% !important; min-width: 0 !important; }
+          .main-right-col { width: 100% !important; position: static !important; top: auto !important; }
+          .profile-mobile-only { display: block !important; margin-bottom: 24px; }
           /* When a test is selected, the detail view takes over the whole screen instead of
              stacking beneath the sidebar list — tap "Back to all tests" to return to it. */
-          .app-shell.detail-open .sidebar-col { display: none; }
-          .app-shell:not(.detail-open) .main-col { display: none; }
+          .app-shell.detail-open .sidebar-col { display: none !important; }
+          .app-shell:not(.detail-open) .main-col { display: none !important; }
         }
       `}</style>
 
@@ -701,6 +735,8 @@ export default function Panel() {
             <div className="panel-h1" style={{ fontSize: 24, fontWeight: 600 }}>Panel</div>
           </div>
           <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: 22 }}>Track blood work over time.</div>
+
+          <div className="profile-mobile-only">{renderProfileCard()}</div>
 
           <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.inkSoft, marginBottom: 10 }}>Overview</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 28 }}>
@@ -789,8 +825,8 @@ export default function Panel() {
           <div className="main-left-col">
             {selected.length > 0 && (
               <div style={{ marginBottom: 20 }}>
-                <span onClick={() => setSelected([])} style={{ cursor: 'pointer', color: COLORS.tealDark, fontSize: 13.5, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <IconArrowLeft size={14} /> Back to all tests
+                <span onClick={() => setSelected([])} style={{ cursor: 'pointer', color: COLORS.tealDark, fontSize: 15.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 4px' }}>
+                  <IconArrowLeft size={17} /> Back to all tests
                 </span>
               </div>
             )}
@@ -982,33 +1018,7 @@ export default function Panel() {
 
           {/* Right column: Patient Profile, with Key Takeaways stacked directly beneath it */}
           <div className="main-right-col">
-            <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '12px 14px', background: COLORS.card }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: profileOpen ? 10 : 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: COLORS.inkSoft }}>Patient profile</div>
-                <button className="panel-btn" style={{ padding: '3px 8px', fontSize: 11.5 }} onClick={() => setProfileOpen(o => !o)}>{profileOpen ? 'Hide' : 'Edit'}</button>
-              </div>
-
-              {!profileOpen && (
-                <div style={{ fontSize: 13 }}>
-                  {profile.name ? <span style={{ fontWeight: 500 }}>{profile.name}</span> : <span style={{ color: COLORS.inkSoft }}>No name set</span>}
-                  {profile.dob && ageFromDOB(profile.dob) != null && <span style={{ color: COLORS.inkSoft }}> · {ageFromDOB(profile.dob)} yrs</span>}
-                  {profile.sex && <span style={{ color: COLORS.inkSoft }}> · {profile.sex}</span>}
-                </div>
-              )}
-
-              {profileOpen && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <input className="panel-input" placeholder="Full name" value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} />
-                  <input className="panel-input" type="date" placeholder="Date of birth" value={profile.dob} onChange={e => setProfile(p => ({ ...p, dob: e.target.value }))} />
-                  <select className="panel-select" value={profile.sex} onChange={e => setProfile(p => ({ ...p, sex: e.target.value }))}>
-                    <option value="">Sex (optional)</option>
-                    <option value="Female">Female</option>
-                    <option value="Male">Male</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-              )}
-            </div>
+            {renderProfileCard()}
 
             {singleMode && singleData.length > 0 && (
               <KeyTakeawaysPanel status={singleStatus} last3={singleLast3} latestCmp={singleLatestCmp} conclusion={singleConclusion} />

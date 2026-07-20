@@ -777,6 +777,15 @@ export default function Panel() {
         .main-col { flex: 1; min-width: 320px; padding: 24px 28px 32px; display: flex; flex-direction: row; gap: 24px; align-items: flex-start; flex-wrap: wrap; box-sizing: border-box; }
         .main-left-col { flex: 1 1 420px; min-width: 320px; }
         .main-right-col { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 20px; }
+
+        /* Bulletproof mobile stacking: plain block flow, no flexbox at all, so there's
+           nothing for any browser quirk to misapply. Pure CSS, no JS dependency. */
+        @media (max-width: 780px) {
+          .main-col { display: block !important; }
+          .main-left-col { display: block !important; width: 100% !important; }
+          .main-right-col { display: block !important; width: 100% !important; position: static !important; margin-top: 24px !important; }
+          .main-right-col > * + * { margin-top: 20px; }
+        }
       `}</style>
 
       <div className="app-shell">

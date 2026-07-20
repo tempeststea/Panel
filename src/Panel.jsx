@@ -229,6 +229,43 @@ function overallConclusion(status) {
   return { label: 'Worth monitoring', color: COLORS.amber };
 }
 
+function statusPhraseOf(list) {
+  if (!list || list.length === 0) return null;
+  const last = list[list.length - 1];
+  if (last.flag === 'unknown') return { label: 'No reference range set', color: COLORS.inkSoft };
+  if (last.flag === 'normal') return { label: 'Within normal range', color: COLORS.tealDark };
+  return { label: last.flag === 'high' ? 'Above range' : 'Below range', color: COLORS.red };
+}
+
+function trendPhraseOf(last3) {
+  if (!last3) return null;
+  if (last3.direction === 'up') return 'Increasing trend';
+  if (last3.direction === 'down') return 'Decreasing trend';
+  return 'Steady trend';
+}
+
+// Detects: current result is in range, but the 1-2 results immediately
+// before it (within the last-3 window only — not the whole history) were
+// consistently on one side of the range. Framed as "recovering" since it's
+// specifically a return to normal, not just any in-range reading.
+function recoveryPattern(list) {
+  if (!list || list.length < 2) return null;
+  const windowSize = Math.min(3, list.length);
+  const win = list.slice(-windowSize);
+  const last = win[win.length - 1];
+  const prior = win.slice(0, -1);
+  if (last.flag !== 'normal' || prior.length === 0) return null;
+  if (prior.every(e => e.flag === 'high')) return 'high';
+  if (prior.every(e => e.flag === 'low')) return 'low';
+  return null;
+}
+
+function finalOverall(status, recovery) {
+  if (recovery) return { label: 'Returning to normal levels. This is an improving trend.', color: COLORS.tealDark };
+  const base = overallConclusion(status);
+  return { label: `${base.label}.`, color: base.color };
+}
+
 function downloadCSV(testName, list) {
   const rows = list.map(e => ({
     date: e.date, test: e.test, value: e.value, unit: e.unit, low: e.low, high: e.high, notes: e.notes || '',
@@ -384,25 +421,31 @@ function OverviewStat({ icon, tint, count, label, valueColor }) {
   );
 }
 
-function KeyTakeawaysPanel({ status, last3, latestCmp, conclusion }) {
+function KeyTakeawaysPanel({ statusPhrase, last3, latestCmp, recovery, overall }) {
+  const trendLabel = trendPhraseOf(last3);
+  const baselineLabel = recovery
+    ? `Previously ${recovery === 'high' ? 'above' : 'below'} range`
+    : (latestCmp ? `${cmpWord(latestCmp, 'usual')} ${latestCmp.icon}` : null);
+
   return (
     <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: '18px 18px 8px', background: COLORS.card }}>
       <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.inkSoft, marginBottom: 16 }}>Key takeaways</div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <IconTrend direction={last3 ? last3.direction : 'flat'} size={17} />
+        <IconAlert size={17} color={statusPhrase ? statusPhrase.color : COLORS.inkSoft} />
         <div>
-          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Trend</div>
-          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{last3 ? (last3.direction === 'up' ? 'Upward' : last3.direction === 'down' ? 'Downward' : 'Steady') : '–'}</div>
+          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Status</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: statusPhrase ? statusPhrase.color : COLORS.ink }}>{statusPhrase ? statusPhrase.label : '–'}</div>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <IconBarChart size={17} />
+        <IconTrend direction={last3 ? last3.direction : 'flat'} size={17} />
         <div>
-          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Change (last {last3 ? last3.windowSize : 0} results)</div>
-          <div className="panel-num" style={{ fontSize: 13.5, fontWeight: 600 }}>
-            {last3 ? `${last3.change > 0 ? '+' : ''}${Math.round(last3.change * 100) / 100} ${last3.unit}` : '–'}
+          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Trend</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+            {trendLabel || '–'}
+            {last3 && <span className="panel-num" style={{ fontWeight: 500, color: COLORS.inkSoft }}> ({last3.change > 0 ? '+' : ''}{Math.round(last3.change * 100) / 100} {last3.unit})</span>}
           </div>
         </div>
       </div>
@@ -410,16 +453,16 @@ function KeyTakeawaysPanel({ status, last3, latestCmp, conclusion }) {
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         <IconTarget size={17} />
         <div>
-          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Compared to baseline</div>
-          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{latestCmp ? `${cmpWord(latestCmp, 'usual')} ${latestCmp.icon}` : '–'}</div>
+          <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Baseline</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{baselineLabel || '–'}</div>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <IconShield size={17} color={conclusion ? conclusion.color : COLORS.inkSoft} />
+        <IconShield size={17} color={overall ? overall.color : COLORS.inkSoft} />
         <div>
           <div style={{ fontSize: 11.5, color: COLORS.inkSoft }}>Overall</div>
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: conclusion ? conclusion.color : COLORS.ink }}>{conclusion ? conclusion.label : '–'}</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: overall ? overall.color : COLORS.ink }}>{overall ? overall.label : '–'}</div>
         </div>
       </div>
     </div>
@@ -620,6 +663,12 @@ export default function Panel() {
   const monitorCount = testNames.filter(t => statusOf(byTest[t]) === 'Monitor').length;
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 780 : false));
+  useEffect(() => {
+    function onResize() { setIsMobile(window.innerWidth <= 780); }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const singleMode = selected.length === 1;
   const compareMode = selected.length > 1;
@@ -631,6 +680,7 @@ export default function Panel() {
   const singleLast3 = singleMode && singleData.length > 0 ? last3Summary(singleData) : null;
   const singleBaseline = singleMode && singleData.length > 0 ? baselineOf(singleData) : null;
   const singleConclusion = singleStatus ? overallConclusion(singleStatus) : null;
+  const singleRecovery = singleMode && singleData.length > 0 ? recoveryPattern(singleData) : null;
   const singleLatestCmp = (singleBaseline != null && singleData.length > 0) ? comparedToBaseline(singleData[singleData.length - 1].value, singleBaseline) : null;
 
   const compareData = useMemo(() => {
@@ -709,24 +759,12 @@ export default function Panel() {
         .main-col { flex: 1; min-width: 320px; padding: 24px 28px 32px; display: flex; flex-direction: row; gap: 24px; align-items: flex-start; flex-wrap: wrap; box-sizing: border-box; }
         .main-left-col { flex: 1 1 420px; min-width: 320px; }
         .main-right-col { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 20px; }
-        .profile-mobile-only { display: none; }
-
-        @media (max-width: 780px) {
-          .sidebar-col { width: 100% !important; flex-basis: 100% !important; border-right: none !important; border-bottom: 1px solid ${COLORS.border}; }
-          .main-col { width: 100% !important; flex-basis: 100% !important; padding: 20px 16px 28px !important; flex-direction: column !important; }
-          .main-left-col { flex-basis: 100% !important; min-width: 0 !important; }
-          .main-right-col { width: 100% !important; position: static !important; top: auto !important; }
-          .profile-mobile-only { display: block !important; margin-bottom: 24px; }
-          /* When a test is selected, the detail view takes over the whole screen instead of
-             stacking beneath the sidebar list — tap "Back to all tests" to return to it. */
-          .app-shell.detail-open .sidebar-col { display: none !important; }
-          .app-shell:not(.detail-open) .main-col { display: none !important; }
-        }
       `}</style>
 
-      <div className={`app-shell${selected.length > 0 ? ' detail-open' : ''}`}>
+      <div className="app-shell">
         {/* Sidebar */}
-        <div className="sidebar-col">
+        {(!isMobile || selected.length === 0) && (
+        <div className="sidebar-col" style={isMobile ? { width: '100%', flexBasis: '100%', borderRight: 'none', borderBottom: `1px solid ${COLORS.border}` } : undefined}>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: COLORS.tealSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -736,7 +774,7 @@ export default function Panel() {
           </div>
           <div style={{ fontSize: 13, color: COLORS.inkSoft, marginBottom: 22 }}>Track blood work over time.</div>
 
-          <div className="profile-mobile-only">{renderProfileCard()}</div>
+          {isMobile && renderProfileCard()}
 
           <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.inkSoft, marginBottom: 10 }}>Overview</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 28 }}>
@@ -817,12 +855,14 @@ export default function Panel() {
             </div>
           )}
         </div>
+        )}
 
         {/* Main */}
-        <div className="main-col">
+        {(!isMobile || selected.length > 0) && (
+        <div className="main-col" style={isMobile ? { width: '100%', flexBasis: '100%', flexDirection: 'column', padding: '20px 16px 28px' } : undefined}>
 
           {/* Left: back link + content for whichever state is active */}
-          <div className="main-left-col">
+          <div className="main-left-col" style={isMobile ? { flexBasis: '100%', minWidth: 0 } : undefined}>
             {selected.length > 0 && (
               <div style={{ marginBottom: 20 }}>
                 <span onClick={() => setSelected([])} style={{ cursor: 'pointer', color: COLORS.tealDark, fontSize: 15.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 4px' }}>
@@ -866,30 +906,6 @@ export default function Panel() {
                 </div>
               )}
 
-              {singleTrend ? (
-                <div style={{
-                  display: 'flex', gap: 14, alignItems: 'flex-start', border: `1px solid ${COLORS.border}`,
-                  background: COLORS.amberSoft, borderRadius: 12, padding: '16px 18px', marginBottom: 22, maxWidth: 640,
-                }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <IconLightbulb size={18} />
-                  </div>
-                  <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
-                    <div style={{ fontWeight: 600, color: COLORS.ink }}>{singleTrend.label}</div>
-                    {singleLast3 && (
-                      <div style={{ color: COLORS.inkSoft, marginTop: 2 }}>
-                        {singleLast3.direction === 'steady'
-                          ? `Holding steady over the last ${singleLast3.windowSize} result${singleLast3.windowSize === 1 ? '' : 's'}.`
-                          : `Trending ${singleLast3.direction === 'down' ? 'downward' : 'upward'} over the last ${singleLast3.windowSize} results.`}
-                      </div>
-                    )}
-                    {singleConclusion && <div style={{ color: singleConclusion.color, fontWeight: 600, marginTop: 4 }}>{singleConclusion.label}.</div>}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: 12.5, color: COLORS.inkSoft, marginBottom: 20 }}>Add another result to start seeing a trend.</div>
-              )}
-
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 18, fontSize: 11.5, color: COLORS.inkSoft, marginBottom: 6, flexWrap: 'wrap' }}>
                 {singleRef && singleRef.low != null && singleRef.high != null && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -925,6 +941,33 @@ export default function Panel() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+
+              {singleTrend ? (() => {
+                const statusPhrase = statusPhraseOf(singleData);
+                const trendLabel = trendPhraseOf(singleLast3);
+                const baselineLabel = singleRecovery
+                  ? `Previously ${singleRecovery === 'high' ? 'above' : 'below'} range`
+                  : (singleLatestCmp ? `${cmpWord(singleLatestCmp, 'baseline')} ${singleLatestCmp.icon}` : null);
+                const overall = finalOverall(singleStatus, singleRecovery);
+                return (
+                  <div style={{
+                    display: 'flex', gap: 14, alignItems: 'flex-start', border: `1px solid ${COLORS.border}`,
+                    background: COLORS.amberSoft, borderRadius: 12, padding: '16px 18px', marginTop: 18, marginBottom: 22, maxWidth: 640,
+                  }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <IconLightbulb size={18} />
+                    </div>
+                    <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+                      {statusPhrase && <div style={{ fontWeight: 600, color: COLORS.ink }}>{statusPhrase.label}</div>}
+                      {trendLabel && <div style={{ color: COLORS.inkSoft, marginTop: 2 }}>{trendLabel}.</div>}
+                      {baselineLabel && <div style={{ color: COLORS.inkSoft, marginTop: 2 }}>{baselineLabel}.</div>}
+                      {overall && <div style={{ color: overall.color, marginTop: 4 }}><strong>Overall:</strong> {overall.label}</div>}
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div style={{ fontSize: 12.5, color: COLORS.inkSoft, marginTop: 18, marginBottom: 20 }}>Add another result to start seeing a trend.</div>
+              )}
 
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: COLORS.inkSoft,
@@ -1017,14 +1060,21 @@ export default function Panel() {
           </div>
 
           {/* Right column: Patient Profile, with Key Takeaways stacked directly beneath it */}
-          <div className="main-right-col">
+          <div className="main-right-col" style={isMobile ? { width: '100%', position: 'static', top: 'auto' } : undefined}>
             {renderProfileCard()}
 
             {singleMode && singleData.length > 0 && (
-              <KeyTakeawaysPanel status={singleStatus} last3={singleLast3} latestCmp={singleLatestCmp} conclusion={singleConclusion} />
+              <KeyTakeawaysPanel
+                statusPhrase={statusPhraseOf(singleData)}
+                last3={singleLast3}
+                latestCmp={singleLatestCmp}
+                recovery={singleRecovery}
+                overall={finalOverall(singleStatus, singleRecovery)}
+              />
             )}
           </div>
         </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 32px', borderTop: `1px solid ${COLORS.border}`, fontSize: 11, color: COLORS.inkSoft }}>

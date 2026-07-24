@@ -965,7 +965,7 @@ export default function Panel() {
                 <span className="panel-h1" style={{ fontSize: 26 }}>Panel</span>
               </div>
               <div className="gold-rule" />
-              <div style={{ fontSize: 13, color: COLORS.inkSoft, margin: '10px 0 22px' }}>Track your blood work over time.</div>
+              <div style={{ fontSize: 13, color: COLORS.inkSoft, margin: '10px 0 22px' }}>Understand your results. Take control of your health.</div>
 
               <div style={{ position: 'relative', display: 'inline-block', marginBottom: 24 }}>
                 <div className="profile-pill" onClick={() => setProfileOpen(o => !o)}>
